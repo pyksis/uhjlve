@@ -1,0 +1,28 @@
+#huiji-local-ve-status {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.16);
+  color: #202122;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+#huiji-local-ve-status::before {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #72777d;
+  content: "";
+}
+
+#huiji-local-ve-status[data-state="ready"]::before { background: #14866d; }
+#huiji-local-ve-status[data-state="error"]::before { background: #d73333; }
+#huiji-local-ve-status[data-state="working"]::before { background: #36c; }

@@ -1,0 +1,23 @@
+num_workers: 1
+worker_heartbeat_timeout: 300000
+
+logging:
+  level: info
+
+services:
+  - module: lib/index.js
+    entrypoint: apiServiceWorker
+    conf:
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36 HuijiLocalVisualEditor/1.0'
+      mwApis:
+        - uri: 'http://127.0.0.1:8143/api.php'
+          domain: 'unimage.huijiwiki.com'
+          prefix: 'unimage'
+          strictSSL: true
+      defaultWiki: 'unimage'
+      useWorker: false
+      useBatchAPI: false
+      useSelser: true
+      allowCORS: '*'
+      serverPort: 8142
+      serverInterface: '127.0.0.1'

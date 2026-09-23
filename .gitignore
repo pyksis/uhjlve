@@ -1,0 +1,13 @@
+# Local browser profile may contain signed-in cookies and extension state.
+edge-profile/
+
+# Runtime logs and process bookkeeping are generated locally.
+logs/
+service-pids.json
+
+# OS and editor state.
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/

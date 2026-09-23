@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "灰机本地 VisualEditor 接桥",
+  "version": "1.0.1",
+  "description": "把 unimage.huijiwiki.com 的 VisualEditor Parsoid 请求转发到本机，并通过 MediaWiki 编辑 API 发布。",
+  "permissions": [],
+  "host_permissions": [
+    "http://127.0.0.1:8142/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://unimage.huijiwiki.com/*"],
+      "js": ["content-bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://unimage.huijiwiki.com/*"],
+      "js": ["page-bridge.js"],
+      "css": ["status.css"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
