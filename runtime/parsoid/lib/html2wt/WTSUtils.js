@@ -11,7 +11,9 @@ const { KV, TagTk, EndTagTk } = require('../tokens/TokenTypes.js');
 /** @namespace */
 class WTSUtils {
 	static isValidSep(sep) {
-		return sep.match(/^(\s|<!--([^\-]|-(?!->))*-->)*$/);
+		// getOrigSrc returns null for overlapping/reversed source ranges after
+		// edits. Treat it as unavailable so buildSep uses its normal constraints.
+		return typeof sep === 'string' && sep.match(/^(\s|<!--([^\-]|-(?!->))*-->)*$/);
 	}
 
 	static hasValidTagWidths(dsr) {

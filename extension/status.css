@@ -1,4 +1,5 @@
-#huiji-local-ve-status {
+#huiji-local-ve-status { display: none !important; }
+#huiji-local-ve-status-v2 {
   position: fixed;
   right: 14px;
   bottom: 14px;
@@ -15,7 +16,7 @@
   font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-#huiji-local-ve-status::before {
+#huiji-local-ve-status-v2::before {
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -23,6 +24,6 @@
   content: "";
 }
 
-#huiji-local-ve-status[data-state="ready"]::before { background: #14866d; }
-#huiji-local-ve-status[data-state="error"]::before { background: #d73333; }
-#huiji-local-ve-status[data-state="working"]::before { background: #36c; }
+#huiji-local-ve-status-v2[data-state="ready"]::before { background: #14866d; }
+#huiji-local-ve-status-v2[data-state="error"]::before { background: #d73333; }
+#huiji-local-ve-status-v2[data-state="working"]::before { background: #36c; }

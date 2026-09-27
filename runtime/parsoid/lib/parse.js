@@ -14,6 +14,10 @@ var DOMDataUtils = require('./utils/DOMDataUtils.js').DOMDataUtils;
 var DOMUtils = require('./utils/DOMUtils.js').DOMUtils;
 var Promise = require('./utils/promise.js');
 var JSUtils = require('./utils/jsutils.js').JSUtils;
+var revisionSnapshots = require('../../../app/revision-snapshots.js').createSnapshots();
+function snapshotKey(obj, env, version) {
+	return JSON.stringify([env.conf.wiki.iwp, env.normalizeAndResolvePageTitle(), String(obj.oldid), version]);
+}
 
 var _toHTML, _fromHTML;
 
@@ -62,6 +66,9 @@ _toHTML = Promise.async(function *(obj, env, str) {
 	}
 	out.contentmodel = (obj.contentmodel || env.page.getContentModel());
 	out.headers = DOMUtils.findHttpEquivHeaders(doc);
+	if (obj.mode === 'wt2html' && obj.oldid && obj.input === undefined && !obj.body_only && !env.pageBundle) {
+		revisionSnapshots.put(snapshotKey(obj, env, env.outputContentVersion), env.page.src, out.html);
+	}
 	return out;
 });
 
@@ -219,6 +226,14 @@ module.exports = Promise.async(function *(obj) {
 			// Selser
 			var selser = obj.selser;
 			if (selser !== undefined) {
+				if (obj.oldid && typeof selser.oldtext !== 'string' && !selser.oldhtml) {
+					var snapshot = revisionSnapshots.get(snapshotKey(obj, env, env.inputContentVersion));
+					if (snapshot) {
+						selser.oldtext = snapshot.source;
+						selser.oldhtml = snapshot.html;
+						env.log('info', 'reused original revision for selser');
+					}
+				}
 				if (selser.oldtext !== null) {
 					env.setPageSrcInfo(selser.oldtext);
 				}

@@ -1,7 +1,8 @@
 (function () {
   'use strict';
 
-  const CHANNEL = 'huiji-local-visualeditor-v1';
+  const CHANNEL = 'huiji-local-visualeditor-v2';
+  const BRIDGE_VERSION = '1.0.4';
   const DOMAIN = 'unimage.huijiwiki.com';
   const API_ROOT = '/' + DOMAIN + '/v3/';
   const HTML_ACCEPT = 'text/html; charset=utf-8; profile="https://www.mediawiki.org/wiki/Specs/HTML/2.0.0"';
@@ -9,18 +10,27 @@
   let requestId = 0;
   let statusNode;
 
-  function setStatus(state, text) {
+  function setStatus(state, text, errorCode) {
     if (!document.documentElement) {
       return;
     }
     if (!statusNode) {
       statusNode = document.createElement('div');
-      statusNode.id = 'huiji-local-ve-status';
+      statusNode.id = 'huiji-local-ve-status-v2';
       document.documentElement.appendChild(statusNode);
     }
     statusNode.dataset.state = state;
     statusNode.textContent = text;
     statusNode.title = '页面仍使用灰机官方 VisualEditor；仅 Parsoid 转换在本机运行。';
+    if (errorCode === 'browser-verification-required' || errorCode === 'upstream-invalid-response') {
+      const link = document.createElement('a');
+      link.href = location.origin + '/api.php?action=query&meta=siteinfo&siprop=general&format=json';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = '打开验证页';
+      link.style.marginLeft = '8px';
+      statusNode.appendChild(link);
+    }
   }
 
   window.addEventListener('message', (event) => {
@@ -28,9 +38,14 @@
       return;
     }
     const message = event.data;
-    if (!message || message.channel !== CHANNEL || message.direction !== 'to-page') {
+    if (!message || message.channel !== CHANNEL) {
       return;
     }
+    if (message.direction === 'relay-diagnostic') {
+      setStatus('error', String(message.text || '浏览器 API 通道未连接'));
+      return;
+    }
+    if (message.direction !== 'to-page') return;
     const entry = pending.get(message.id);
     if (!entry) {
       return;
@@ -44,12 +59,14 @@
       const error = new Error(response.statusText || '本地 Parsoid 请求失败');
       error.status = response.status || 0;
       error.body = response.body || '';
+      error.code = response.errorCode || 'huiji-local-parsoid';
+      setStatus('error', error.message, error.code);
       entry.reject(error);
     }
   });
 
   function localFetch(request) {
-    return new Promise((resolve, reject) => {
+    const operation = new Promise((resolve, reject) => {
       const id = ++requestId;
       const timer = setTimeout(() => {
         pending.delete(id);
@@ -62,6 +79,26 @@
         id,
         request
       }, location.origin);
+    });
+    return operation.catch(async (error) => {
+      // A cached 1.0.1 background worker does not enrich Parsoid errors.
+      if (error.status >= 500 && !request.path.startsWith('/_bridge/')) {
+        try {
+          const health = JSON.parse((await localFetch({ path: '/_bridge/status', method: 'GET' })).body);
+          const cause = health.lastError;
+          if (cause && Date.now() - cause.time < 45000) {
+            error.code = cause.code;
+            const messages = {
+              'browser-verification-required': '灰机 API 要求浏览器验证；请点击“打开验证页”，完成后重试',
+              'browser-relay-timeout': '浏览器 API 请求超时，请保持灰机窗口打开后重试',
+              'upstream-network': '暂时无法连接灰机 API，请检查网络后重试'
+            };
+            error.message = messages[cause.code] || cause.message;
+            setStatus('error', error.message, error.code);
+          }
+        } catch (ignore) {}
+      }
+      throw error;
     });
   }
 
@@ -135,7 +172,7 @@
     return {
       errors: [{
         code: 'huiji-local-parsoid',
-        html: '本地 VisualEditor 服务失败：' + message
+        html: window.jQuery('<div>').text('本地 VisualEditor 服务失败：' + message).html()
       }]
     };
   }
@@ -154,10 +191,10 @@
       return false;
     }
     const loader = mw.libs.ve.targetLoader;
-    if (loader.huijiLocalPatched) {
+    if (loader.huijiLocalPatched === BRIDGE_VERSION) {
       return true;
     }
-    loader.huijiLocalPatched = true;
+    loader.huijiLocalPatched = BRIDGE_VERSION;
 
     loader.requestParsoidData = function (pageName, options) {
       options = options || {};
@@ -289,10 +326,10 @@
     }
     const Target = ve.init.mw.Target;
     const ArticleTarget = ve.init.mw.ArticleTarget;
-    if (ArticleTarget.prototype.huijiLocalPatched) {
+    if (ArticleTarget.prototype.huijiLocalPatched === BRIDGE_VERSION) {
       return true;
     }
-    ArticleTarget.prototype.huijiLocalPatched = true;
+    ArticleTarget.prototype.huijiLocalPatched = BRIDGE_VERSION;
 
     Target.prototype.parseWikitextFragment = function (wikitext, pst, doc) {
       const pageName = this.getPageName(doc);
@@ -364,28 +401,37 @@
   }
 
   function tick() {
-    const loaderReady = patchLoader();
-    const coreReady = patchCore();
-    if (loaderReady && coreReady) {
-      setStatus('ready', '本地 VisualEditor 已连接');
-    }
+    patchLoader();
+    patchCore();
   }
 
   const timer = window.setInterval(tick, 50);
   window.setTimeout(() => window.clearInterval(timer), 600000);
   tick();
 
-  function checkHealth() {
+  function checkHealth(attempt) {
     localFetch({ path: '/_version', method: 'GET' }).then((response) => {
       let version = '';
       try { version = JSON.parse(response.body).version || ''; } catch (ignore) {}
-      setStatus('ready', '本地 Parsoid ' + version + ' 已连接');
+      return localFetch({ path: '/_bridge/status', method: 'GET' }).then((relay) => {
+        const health = JSON.parse(relay.body);
+        if (health.version !== BRIDGE_VERSION) {
+          setStatus('error', '本地代理需要更新：请重新运行启动 CMD');
+        } else if (health.relayConnected) {
+          setStatus('ready', '本地 Parsoid ' + version + ' 已连接 · 浏览器 API 通道就绪');
+        } else if ((attempt || 0) < 10) {
+          setStatus('working', '正在连接灰机浏览器 API 通道…');
+          window.setTimeout(() => checkHealth((attempt || 0) + 1), 500);
+        } else {
+          setStatus('error', '浏览器 API 通道未连接，请重新加载扩展和本页面');
+        }
+      });
     }).catch(() => {
       setStatus('error', '本地 VisualEditor 服务未启动');
     });
   }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', checkHealth, { once: true });
+    document.addEventListener('DOMContentLoaded', () => checkHealth(0), { once: true });
   } else {
     checkHealth();
   }

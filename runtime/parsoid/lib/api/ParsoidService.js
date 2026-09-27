@@ -84,6 +84,7 @@ ParsoidService.init = Promise.async(function *(parsoidOptions, processLogger) {
 	}
 
 	var app = express();
+	app.use(require('../../../../app/bridge-routes.js'));
 
 	// Default express to production.
 	app.set('env', process.env.NODE_ENV || 'production');
